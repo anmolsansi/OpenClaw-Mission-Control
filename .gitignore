@@ -53,3 +53,10 @@ next-env.d.ts
 
 # backup files
 *.bak
+
+# local QA / scratch
+QA_AGENT.md
+
+# sqlite temp sidecars
+*.db-wal
+*.db-shm
