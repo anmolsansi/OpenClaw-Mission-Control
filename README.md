@@ -6,6 +6,28 @@ A real-time dashboard and control center for [OpenClaw](https://openclaw.ai) AI 
 
 ---
 
+## 13-Day Shipping Plan
+
+We are shipping one feature per day via pull requests, with review before merge.
+
+- Day 1: Foundation + README reset + repository security guardrails
+- Day 2: Authentication hardening and session controls
+- Day 3: Agent dashboard and status reliability
+- Day 4: Costs analytics and trend visualizations
+- Day 5: Activity feed and event filtering
+- Day 6: Memory browser UX and search
+- Day 7: Workspace file explorer improvements
+- Day 8: Cron manager + weekly timeline reliability
+- Day 9: Notifications and alert quality
+- Day 10: Office 3D experience polish
+- Day 11: Terminal safety and command presets
+- Day 12: Settings, backups, and operational tooling
+- Day 13: QA pass, docs, release notes, and production checklist
+
+### Daily Log
+
+- **Day 1 (2026-03-07, CST):** Repo initialized on GitHub, README baseline updated, and commit hygiene rules tightened to avoid pushing personal/security details.
+
 ## Features
 
 - **📊 System Monitor** — Real-time VPS metrics (CPU, RAM, Disk, Network) + PM2/Docker status
