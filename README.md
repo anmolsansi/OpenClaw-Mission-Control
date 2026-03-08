@@ -1,8 +1,8 @@
-# TenacitOS — Mission Control
+# Mission Control
 
 A real-time dashboard and control center for [OpenClaw](https://openclaw.ai) AI agent instances. Built with Next.js, React 19, and Tailwind CSS v4.
 
-> **TenacitOS** lives inside your OpenClaw workspace and reads its configuration, agents, sessions, memory, and logs directly from the host. No extra database or backend required — OpenClaw is the backend.
+> **Mission Control** lives inside your OpenClaw workspace and reads its configuration, agents, sessions, memory, and logs directly from the host. No extra database or backend required — OpenClaw is the backend.
 
 ---
 
@@ -49,23 +49,18 @@ We are shipping one feature per day via pull requests, with review before merge.
 
 **Dashboard** — activity overview, agent status, and weather widget
 
-![Dashboard](./docs/screenshots/dashboard.jpg)
 
 **Session History** — all OpenClaw sessions with token usage and context tracking
 
-![Sessions](./docs/screenshots/sessions.jpg)
 
 **Costs & Analytics** — daily cost trends and breakdown per agent
 
-![Costs](./docs/screenshots/costs.jpg)
 
 **System Monitor** — real-time CPU, RAM, Disk, and Network metrics
 
-![System Monitor](./docs/screenshots/system.jpg)
 
 **Office 3D** — interactive 3D office with one voxel avatar per agent (React Three Fiber)
 
-![Office 3D](./docs/screenshots/office3d.jpg)
 
 ---
 
@@ -80,7 +75,7 @@ We are shipping one feature per day via pull requests, with review before merge.
 
 ## How it works
 
-TenacitOS reads directly from your OpenClaw installation:
+Mission Control reads directly from your OpenClaw installation:
 
 ```
 /root/.openclaw/              ← OPENCLAW_DIR (configurable)
@@ -89,7 +84,7 @@ TenacitOS reads directly from your OpenClaw installation:
 ├── workspace-studio/         ← sub-agent workspaces
 ├── workspace-infra/
 ├── ...
-└── workspace/mission-control/ ← TenacitOS lives here
+└── workspace/mission-control/ ← Mission Control lives here
 ```
 
 The app uses `OPENCLAW_DIR` to locate `openclaw.json` and all workspaces. **No manual agent configuration needed** — agents are auto-discovered from `openclaw.json`.
@@ -198,7 +193,7 @@ Create `/etc/systemd/system/mission-control.service`:
 
 ```ini
 [Unit]
-Description=TenacitOS — OpenClaw Mission Control
+Description=Mission Control — OpenClaw Mission Control
 After=network.target
 
 [Service]
@@ -325,7 +320,7 @@ mission-control/
 │   │   ├── login/            # Login page
 │   │   └── office/           # 3D office (unprotected route)
 │   ├── components/
-│   │   ├── TenacitOS/        # OS-style UI shell (topbar, dock, status bar)
+│   │   ├── MissionControl/   # UI shell (topbar, dock, status bar)
 │   │   └── Office3D/         # React Three Fiber 3D office
 │   ├── config/
 │   │   └── branding.ts       # Branding constants (reads from env vars)
