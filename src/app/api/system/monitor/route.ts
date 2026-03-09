@@ -58,6 +58,28 @@ function normalizePm2Status(status: string): string {
   }
 }
 
+function getPerCoreUsage(): number[] {
+  const cpus = os.cpus();
+  const prev = (global as Record<string, unknown>).__cpuPrev as Array<{ idle: number; total: number }> | undefined;
+  const curr = cpus.map((c) => {
+    const t = c.times;
+    const total = t.user + t.nice + t.sys + t.irq + t.idle;
+    return { idle: t.idle, total };
+  });
+
+  let usage = cpus.map(() => 0);
+  if (prev && prev.length === curr.length) {
+    usage = curr.map((c, i) => {
+      const totalDiff = c.total - prev[i].total;
+      const idleDiff = c.idle - prev[i].idle;
+      if (totalDiff <= 0) return 0;
+      return Math.max(0, Math.min(100, Math.round((1 - idleDiff / totalDiff) * 100)));
+    });
+  }
+  (global as Record<string, unknown>).__cpuPrev = curr;
+  return usage;
+}
+
 // Friendly display names for PM2 process names
 const SERVICE_DESCRIPTIONS: Record<string, string> = {
   "mission-control": "Mission Control – Tenacitas Dashboard",
@@ -80,27 +102,31 @@ export async function GET() {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
-    // ── Disk ─────────────────────────────────────────────────────────────────
+    // ── Disk (macOS + Linux compatible) ─────────────────────────────────────
     let diskTotal = 100;
     let diskUsed = 0;
     let diskFree = 100;
     try {
-      const { stdout } = await execAsync("df -BG / | tail -1");
+      const { stdout } = await execAsync("df -k / | tail -1");
       const parts = stdout.trim().split(/\s+/);
-      diskTotal = parseInt(parts[1].replace("G", ""));
-      diskUsed = parseInt(parts[2].replace("G", ""));
-      diskFree = parseInt(parts[3].replace("G", ""));
+      const totalKb = parseInt(parts[1] || "0", 10);
+      const usedKb = parseInt(parts[2] || "0", 10);
+      const freeKb = parseInt(parts[3] || "0", 10);
+      if (Number.isFinite(totalKb) && totalKb > 0) {
+        diskTotal = parseFloat((totalKb / 1024 / 1024).toFixed(1));
+        diskUsed = parseFloat((usedKb / 1024 / 1024).toFixed(1));
+        diskFree = parseFloat((freeKb / 1024 / 1024).toFixed(1));
+      }
     } catch (error) {
       console.error("Failed to get disk stats:", error);
     }
-    const diskPercent = (diskUsed / diskTotal) * 100;
+    const diskPercent = diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0;
 
-    // ── Network (real stats from /proc/net/dev) ───────────────────────────────
+    // ── Network (cross-platform best-effort) ───────────────────────────────
     let network = { rx: 0, tx: 0 };
     try {
-      const { readFileSync } = await import('fs');
-      
-      function readNetStats(): { rx: number; tx: number; ts: number } {
+      if (process.platform === 'linux') {
+        const { readFileSync } = await import('fs');
         const netDev = readFileSync('/proc/net/dev', 'utf-8');
         const lines = netDev.trim().split('\n').slice(2);
         let rx = 0, tx = 0;
@@ -111,23 +137,44 @@ export async function GET() {
           rx += parseInt(parts[1]) || 0;
           tx += parseInt(parts[9]) || 0;
         }
-        return { rx, tx, ts: Date.now() };
-      }
-      
-      const current = readNetStats();
-      
-      // Use module-level cache for previous reading
-      if ((global as Record<string, unknown>).__netPrev) {
-        const prev = (global as Record<string, unknown>).__netPrev as { rx: number; tx: number; ts: number };
-        const dtSec = (current.ts - prev.ts) / 1000;
-        if (dtSec > 0) {
-          network = {
-            rx: parseFloat(Math.max(0, (current.rx - prev.rx) / 1024 / 1024 / dtSec).toFixed(3)),
-            tx: parseFloat(Math.max(0, (current.tx - prev.tx) / 1024 / 1024 / dtSec).toFixed(3)),
-          };
+        const current = { rx, tx, ts: Date.now() };
+        if ((global as Record<string, unknown>).__netPrev) {
+          const prev = (global as Record<string, unknown>).__netPrev as { rx: number; tx: number; ts: number };
+          const dtSec = (current.ts - prev.ts) / 1000;
+          if (dtSec > 0) {
+            network = {
+              rx: parseFloat(Math.max(0, (current.rx - prev.rx) / 1024 / 1024 / dtSec).toFixed(3)),
+              tx: parseFloat(Math.max(0, (current.tx - prev.tx) / 1024 / 1024 / dtSec).toFixed(3)),
+            };
+          }
         }
+        (global as Record<string, unknown>).__netPrev = current;
+      } else if (process.platform === 'darwin') {
+        const { stdout } = await execAsync("netstat -ib");
+        const lines = stdout.trim().split('\n').slice(1);
+        let rx = 0, tx = 0;
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          const name = parts[0];
+          if (!name || name.startsWith('lo') || name.startsWith('gif') || name.startsWith('stf')) continue;
+          const ibytes = Number(parts[6]);
+          const obytes = Number(parts[9]);
+          if (Number.isFinite(ibytes)) rx += ibytes;
+          if (Number.isFinite(obytes)) tx += obytes;
+        }
+        const current = { rx, tx, ts: Date.now() };
+        if ((global as Record<string, unknown>).__netPrev) {
+          const prev = (global as Record<string, unknown>).__netPrev as { rx: number; tx: number; ts: number };
+          const dtSec = (current.ts - prev.ts) / 1000;
+          if (dtSec > 0) {
+            network = {
+              rx: parseFloat(Math.max(0, (current.rx - prev.rx) / 1024 / 1024 / dtSec).toFixed(3)),
+              tx: parseFloat(Math.max(0, (current.tx - prev.tx) / 1024 / 1024 / dtSec).toFixed(3)),
+            };
+          }
+        }
+        (global as Record<string, unknown>).__netPrev = current;
       }
-      (global as Record<string, unknown>).__netPrev = current;
     } catch (error) {
       console.error("Failed to get network stats:", error);
     }
@@ -225,27 +272,25 @@ export async function GET() {
 
     // ── Tailscale VPN ─────────────────────────────────────────────────────────
     let tailscaleActive = false;
-    let tailscaleIp = "100.122.105.85";
+    let tailscaleIp = "";
     const tailscaleDevices: TailscaleDevice[] = [];
     try {
-      const { stdout: tsStatus } = await execAsync("tailscale status 2>/dev/null || true");
-      const lines = tsStatus.trim().split("\n").filter(Boolean);
-      if (lines.length > 0) {
-        tailscaleActive = true;
-        for (const line of lines) {
-          if (line.startsWith("#")) continue;
-          const parts = line.trim().split(/\s+/);
-          if (parts.length >= 3) {
-            tailscaleDevices.push({
-              ip: parts[0],
-              hostname: parts[1],
-              os: parts[3] || "",
-              online: line.includes("active"),
-            });
-          }
-        }
-        if (tailscaleDevices.length > 0) {
-          tailscaleIp = tailscaleDevices[0].ip || tailscaleIp;
+      const { stdout: tsJson } = await execAsync("tailscale status --json 2>/dev/null || true");
+      if (tsJson && tsJson.trim().startsWith('{')) {
+        const parsed = JSON.parse(tsJson) as any;
+        if (parsed?.BackendState === 'Running') tailscaleActive = true;
+
+        const self = parsed?.Self;
+        if (self?.TailscaleIPs?.length) tailscaleIp = String(self.TailscaleIPs[0]);
+
+        const peers = parsed?.Peer ? Object.values(parsed.Peer) as any[] : [];
+        for (const peer of peers) {
+          tailscaleDevices.push({
+            ip: String(peer?.TailscaleIPs?.[0] || ''),
+            hostname: String(peer?.HostName || peer?.DNSName || 'unknown'),
+            os: String(peer?.OS || ''),
+            online: Boolean(peer?.Online),
+          });
         }
       }
     } catch (error) {
@@ -285,7 +330,7 @@ export async function GET() {
     return NextResponse.json({
       cpu: {
         usage: cpuUsage,
-        cores: os.cpus().map(() => Math.round(Math.random() * 100)),
+        cores: getPerCoreUsage(),
         loadAvg,
       },
       ram: {
@@ -305,19 +350,12 @@ export async function GET() {
       tailscale: {
         active: tailscaleActive,
         ip: tailscaleIp,
-        devices:
-          tailscaleDevices.length > 0
-            ? tailscaleDevices
-            : [
-                { ip: "100.122.105.85", hostname: "srv1328267", os: "linux", online: true },
-                { ip: "100.106.86.52", hostname: "iphone182", os: "iOS", online: true },
-                { ip: "100.72.14.113", hostname: "macbook-pro-de-carlos", os: "macOS", online: true },
-              ],
+        devices: tailscaleDevices,
       },
       firewall: {
-        active: firewallActive || true,
-        rules: firewallRulesList.length > 0 ? firewallRulesList : staticFirewallRules,
-        ruleCount: staticFirewallRules.length,
+        active: firewallActive,
+        rules: firewallRulesList,
+        ruleCount: firewallRulesList.length,
       },
       timestamp: new Date().toISOString(),
     });

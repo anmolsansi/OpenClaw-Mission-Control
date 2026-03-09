@@ -4,12 +4,20 @@
  * Returns heatmap data, counts by type, status, and recent trend
  */
 import { NextResponse } from 'next/server';
-import { getActivityStats } from '@/lib/activities-db';
+import { getActivityStats, syncActivitiesFromOpenClawStatus } from '@/lib/activities-db';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { execSync } from 'child_process';
 
 export async function GET() {
   try {
+    // Opportunistic sync from OpenClaw session snapshots
+    try {
+      const raw = execSync('openclaw status --json 2>/dev/null', { encoding: 'utf-8', timeout: 8000 });
+      const status = JSON.parse(raw);
+      syncActivitiesFromOpenClawStatus(status);
+    } catch {}
+
     const stats = getActivityStats();
 
     // Also get heatmap data (last 52 weeks = 364 days)

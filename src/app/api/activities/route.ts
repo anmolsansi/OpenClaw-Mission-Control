@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logActivity, getActivities } from '@/lib/activities-db';
+import { execSync } from 'child_process';
+import { logActivity, getActivities, syncActivitiesFromOpenClawStatus } from '@/lib/activities-db';
 
 export async function GET(request: NextRequest) {
   try {
+    // Opportunistic sync from OpenClaw session snapshots
+    try {
+      const raw = execSync('openclaw status --json 2>/dev/null', { encoding: 'utf-8', timeout: 8000 });
+      const status = JSON.parse(raw);
+      syncActivitiesFromOpenClawStatus(status);
+    } catch {}
     const { searchParams } = new URL(request.url);
 
     const type = searchParams.get('type') || undefined;

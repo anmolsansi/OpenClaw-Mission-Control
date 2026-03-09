@@ -289,6 +289,7 @@ export default function DashboardPage() {
               { href: "/logs", icon: Terminal, label: "Live Logs", color: "#60a5fa" },
               { href: "/memory", icon: Brain, label: "Memory", color: "#f59e0b" },
               { href: "/skills", icon: Puzzle, label: "Skills", color: "#4ade80" },
+              { href: "/kanban", icon: Calendar, label: "Kanban", color: "#a78bfa" },
             ].map(({ href, icon: Icon, label, color }) => (
               <Link
                 key={href}
