@@ -5,7 +5,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'activities.db');
 
@@ -271,4 +271,60 @@ export function getActivityStats(): {
   for (const r of statusRows) byStatus[r.status] = r.n;
 
   return { total, today, byType, byStatus };
+}
+
+
+export function syncActivitiesFromOpenClawStatus(statusJson: unknown): number {
+  const db = getDb();
+  const recent = (statusJson as { sessions?: { recent?: Array<Record<string, unknown>> } })?.sessions?.recent || [];
+  if (!Array.isArray(recent) || recent.length === 0) return 0;
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO activities (id, timestamp, type, description, status, duration_ms, tokens_used, agent, metadata)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  let inserted = 0;
+  const tx = db.transaction(() => {
+    for (const row of recent) {
+      const key = String(row.key || '');
+      const updatedAt = Number(row.updatedAt || Date.now());
+      const whenIso = new Date(updatedAt).toISOString();
+      const model = String(row.model || 'unknown');
+      const kind = String(row.kind || 'session');
+      const totalTokens = Number(row.totalTokens || 0);
+      const agentId = String(row.agentId || 'main');
+
+      const stableId = createHash('sha1')
+        .update(`${key}|${updatedAt}|${model}|${totalTokens}`)
+        .digest('hex');
+
+      const info = {
+        key,
+        kind,
+        model,
+        sessionId: row.sessionId || null,
+        contextTokens: Number(row.contextTokens || 0),
+        totalTokens,
+        percentUsed: Number(row.percentUsed || 0),
+        abortedLastRun: Boolean(row.abortedLastRun),
+      };
+
+      const res = insert.run(
+        stableId,
+        whenIso,
+        'agent_action',
+        `Session update: ${key}`,
+        row.abortedLastRun ? 'error' : 'success',
+        null,
+        totalTokens || null,
+        agentId,
+        JSON.stringify(info),
+      );
+      if (typeof res.changes === 'number') inserted += res.changes;
+    }
+  });
+
+  tx();
+  return inserted;
 }

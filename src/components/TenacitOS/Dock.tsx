@@ -15,6 +15,7 @@ import {
   DollarSign,
   Settings,
   History,
+  KanbanSquare,
 } from "lucide-react";
 
 const dockItems = [
@@ -27,6 +28,7 @@ const dockItems = [
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/cron", label: "Cron Jobs", icon: Clock },
   { href: "/sessions", label: "Sessions", icon: History },
+  { href: "/kanban", label: "Kanban", icon: KanbanSquare },
   { href: "/skills", label: "Skills", icon: Puzzle },
   { href: "/costs", label: "Costs & Analytics", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: Settings },

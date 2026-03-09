@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck, Trash2, X, Info, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isValid } from "date-fns";
 
 export interface Notification {
   id: string;
@@ -51,6 +52,7 @@ export function NotificationDropdown() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const fetchNotifications = async () => {
     try {
@@ -143,7 +145,8 @@ export function NotificationDropdown() {
       markAsRead(notification.id);
     }
     if (notification.link) {
-      window.location.href = notification.link;
+      router.push(notification.link);
+      setIsOpen(false);
     }
   };
 
@@ -430,7 +433,12 @@ export function NotificationDropdown() {
                           color: "var(--text-muted)",
                         }}
                       >
-                        {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
+                        {(() => {
+                          const parsed = new Date(notification.timestamp);
+                          return isValid(parsed)
+                            ? formatDistanceToNow(parsed, { addSuffix: true })
+                            : "just now";
+                        })()}
                       </span>
 
                       {/* Action Buttons */}

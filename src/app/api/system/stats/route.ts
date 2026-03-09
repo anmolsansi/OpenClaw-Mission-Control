@@ -23,14 +23,19 @@ export async function GET() {
       total: parseFloat((totalMem / 1024 / 1024 / 1024).toFixed(2)),
     };
 
-    // Disk
+    // Disk (macOS + Linux compatible)
     let diskUsed = 0;
     let diskTotal = 100;
     try {
-      const { stdout } = await execAsync("df -BG / | tail -1");
+      const { stdout } = await execAsync("df -k / | tail -1");
       const parts = stdout.trim().split(/\s+/);
-      diskTotal = parseInt(parts[1].replace("G", ""));
-      diskUsed = parseInt(parts[2].replace("G", ""));
+      // POSIX: Filesystem 1024-blocks Used Available Capacity Mounted on
+      const totalKb = parseInt(parts[1] || "0", 10);
+      const usedKb = parseInt(parts[2] || "0", 10);
+      if (Number.isFinite(totalKb) && totalKb > 0) {
+        diskTotal = parseFloat((totalKb / 1024 / 1024).toFixed(1));
+        diskUsed = parseFloat((usedKb / 1024 / 1024).toFixed(1));
+      }
     } catch (error) {
       console.error("Failed to get disk stats:", error);
     }

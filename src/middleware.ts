@@ -15,6 +15,11 @@ function isAuthenticated(request: NextRequest): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Dev/local bypass if explicitly enabled
+  if (process.env.DISABLE_AUTH === "true") {
+    return NextResponse.next();
+  }
+
   // Always allow public pages (login)
   if (PUBLIC_ROUTES.has(pathname)) {
     return NextResponse.next();

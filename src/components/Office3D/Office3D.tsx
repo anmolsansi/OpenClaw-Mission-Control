@@ -35,6 +35,19 @@ export default function Office3D() {
     infra: { id: 'infra', status: 'error', currentTask: 'Failed deployment', model: 'haiku', tokensPerHour: 1000, tasksInQueue: 0, uptime: 15 },
   });
 
+  const getAgentState = (agentId: string): AgentState => {
+    return (
+      agentStates[agentId] || {
+        id: agentId,
+        status: 'idle',
+        model: 'gpt-5.3-codex',
+        tokensPerHour: 0,
+        tasksInQueue: 0,
+        uptime: 0,
+      }
+    );
+  };
+
   const handleDeskClick = (agentId: string) => {
     setSelectedAgent(agentId);
   };
@@ -115,7 +128,7 @@ export default function Office3D() {
             <AgentDesk
               key={agent.id}
               agent={agent}
-              state={agentStates[agent.id]}
+              state={getAgentState(agent.id)}
               onClick={() => handleDeskClick(agent.id)}
               isSelected={selectedAgent === agent.id}
             />
@@ -126,7 +139,7 @@ export default function Office3D() {
             <MovingAvatar
               key={`avatar-${agent.id}`}
               agent={agent}
-              state={agentStates[agent.id]}
+              state={getAgentState(agent.id)}
               officeBounds={{ minX: -8, maxX: 8, minZ: -7, maxZ: 7 }}
               obstacles={obstacles}
               otherAvatarPositions={avatarPositions}
@@ -178,7 +191,7 @@ export default function Office3D() {
       {selectedAgent && (
         <AgentPanel
           agent={AGENTS.find(a => a.id === selectedAgent)!}
-          state={agentStates[selectedAgent]}
+          state={getAgentState(selectedAgent)}
           onClose={handleClosePanel}
         />
       )}

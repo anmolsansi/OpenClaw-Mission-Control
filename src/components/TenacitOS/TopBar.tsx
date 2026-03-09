@@ -7,6 +7,8 @@ import { NotificationDropdown } from "@/components/NotificationDropdown";
 
 export function TopBar() {
   const [showSearch, setShowSearch] = useState(false);
+  const ownerName = process.env.NEXT_PUBLIC_OWNER_NAME || "Anmol";
+  const ownerInitial = ownerName.charAt(0).toUpperCase();
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -139,7 +141,7 @@ export function TopBar() {
                   color: "var(--text-primary)",
                 }}
               >
-                C
+                {ownerInitial}
               </span>
             </div>
             {/* Name */}
@@ -151,7 +153,7 @@ export function TopBar() {
                 color: "var(--text-secondary)",
               }}
             >
-              Carlos
+              {ownerName}
             </span>
           </div>
         </div>
