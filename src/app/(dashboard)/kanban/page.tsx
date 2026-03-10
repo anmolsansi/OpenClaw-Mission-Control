@@ -20,7 +20,6 @@ const ME = "Anmol";
 function normalizeTask(task: Task): Task {
   const assignees = Array.isArray(task.assignees) ? task.assignees : [];
 
-  // Backward-compatible inferred assignee/details for old cards
   const inferredAssignees = assignees.length
     ? assignees
     : task.id.includes("SHIP") || /approval|review|confirm/i.test(task.title)
@@ -44,6 +43,12 @@ export default function KanbanPage() {
   const [showMineOnly, setShowMineOnly] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDetails, setNewDetails] = useState("");
+  const [newAssignees, setNewAssignees] = useState("Neutron");
+  const [newPriority, setNewPriority] = useState<"low" | "medium" | "high">("medium");
+  const [newColumn, setNewColumn] = useState("Todo");
 
   useEffect(() => {
     fetch("/api/kanban")
@@ -59,9 +64,7 @@ export default function KanbanPage() {
 
   const grouped = useMemo(() => {
     const map: Record<string, Task[]> = Object.fromEntries(COLUMNS.map((c) => [c, []]));
-    for (const t of visibleTasks) {
-      map[t.column].push(t);
-    }
+    for (const t of visibleTasks) map[t.column].push(t);
     return map;
   }, [visibleTasks]);
 
@@ -69,27 +72,58 @@ export default function KanbanPage() {
 
   const moveTask = (taskId: string, toColumn: string) => {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, column: toColumn } : t)));
-
-    // best-effort persistence
-    fetch('/api/kanban', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/kanban", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taskId, column: toColumn }),
     }).catch(() => {});
+  };
+
+  const createTask = async () => {
+    const title = newTitle.trim();
+    if (!title) return;
+
+    const assignees = newAssignees
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const res = await fetch("/api/kanban", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        title,
+        details: newDetails,
+        assignees,
+        priority: newPriority,
+        column: newColumn,
+      }),
+    });
+
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data?.task) {
+      const created = normalizeTask(data.task as Task);
+      setTasks((prev) => [created, ...prev]);
+      setShowCreate(false);
+      setNewTitle("");
+      setNewDetails("");
+      setNewAssignees("Neutron");
+      setNewPriority("medium");
+      setNewColumn("Todo");
+    }
   };
 
   return (
     <div className="p-6">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <h1
-            className="text-3xl font-bold mb-2"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
+          <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
             Kanban Board
           </h1>
           <p style={{ color: "var(--text-secondary)" }}>
-            Live board from <code>data/kanban.json</code> • Drag cards between columns
+            Live board from <code>data/kanban.json</code> • Drag cards between columns • Add tasks inline
           </p>
         </div>
 
@@ -108,8 +142,68 @@ export default function KanbanPage() {
           >
             {showMineOnly ? "Showing: My Tasks" : "Show My Tasks"}
           </button>
+          <button
+            onClick={() => setShowCreate((v) => !v)}
+            className="px-3 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "var(--accent)", color: "white" }}
+          >
+            {showCreate ? "Close" : "+ New Task"}
+          </button>
         </div>
       </div>
+
+      {showCreate && (
+        <div className="rounded-xl p-4 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Task title"
+              className="px-3 py-2 rounded-lg"
+              style={{ background: "var(--card-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+            <input
+              value={newAssignees}
+              onChange={(e) => setNewAssignees(e.target.value)}
+              placeholder="Assignees (comma separated)"
+              className="px-3 py-2 rounded-lg"
+              style={{ background: "var(--card-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+            <select
+              value={newPriority}
+              onChange={(e) => setNewPriority(e.target.value as "low" | "medium" | "high")}
+              className="px-3 py-2 rounded-lg"
+              style={{ background: "var(--card-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            >
+              <option value="low">Low priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="high">High priority</option>
+            </select>
+            <select
+              value={newColumn}
+              onChange={(e) => setNewColumn(e.target.value)}
+              className="px-3 py-2 rounded-lg"
+              style={{ background: "var(--card-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            >
+              {COLUMNS.map((col) => (
+                <option key={col} value={col}>{col}</option>
+              ))}
+            </select>
+            <textarea
+              value={newDetails}
+              onChange={(e) => setNewDetails(e.target.value)}
+              placeholder="Details (optional)"
+              className="md:col-span-2 px-3 py-2 rounded-lg min-h-[88px]"
+              style={{ background: "var(--card-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+          </div>
+          <div className="mt-3">
+            <button onClick={createTask} className="px-3 py-2 rounded-lg text-sm font-medium" style={{ background: "var(--accent)", color: "white" }}>
+              Create Task
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {COLUMNS.map((col) => (

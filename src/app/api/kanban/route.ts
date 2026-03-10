@@ -18,6 +18,17 @@ function readKanban() {
   return JSON.parse(raw) as { tasks: Array<Record<string, unknown>>; updatedAt?: string };
 }
 
+function writeKanban(tasks: Array<Record<string, unknown>>) {
+  const next = { tasks, updatedAt: new Date().toISOString() };
+  writeFileSync(DATA_PATH, JSON.stringify(next, null, 2));
+}
+
+function makeTaskId() {
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 12);
+  return `TASK-${stamp}`;
+}
+
 export async function GET() {
   try {
     return NextResponse.json(readKanban());
@@ -29,6 +40,27 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const data = readKanban();
+
+    if (body?.action === 'create') {
+      const title = String(body?.title || '').trim();
+      if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 });
+
+      const task = {
+        id: String(body?.id || makeTaskId()),
+        title,
+        column: String(body?.column || 'Todo'),
+        assignees: Array.isArray(body?.assignees) ? body.assignees : [],
+        priority: ['low', 'medium', 'high'].includes(String(body?.priority)) ? body.priority : 'medium',
+        details: String(body?.details || ''),
+        createdAt: new Date().toISOString(),
+      };
+
+      const nextTasks = [task, ...(data.tasks || [])];
+      writeKanban(nextTasks);
+      return NextResponse.json({ success: true, task });
+    }
+
     const taskId = String(body?.taskId || '');
     const column = String(body?.column || '');
 
@@ -36,14 +68,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'taskId and column are required' }, { status: 400 });
     }
 
-    const data = readKanban();
     const nextTasks = (data.tasks || []).map((t) =>
-      String(t.id) === taskId ? { ...t, column } : t
+      String(t.id) === taskId ? { ...t, column } : t,
     );
 
-    const next = { tasks: nextTasks, updatedAt: new Date().toISOString() };
-    writeFileSync(DATA_PATH, JSON.stringify(next, null, 2));
-
+    writeKanban(nextTasks);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Failed to update kanban' }, { status: 500 });
